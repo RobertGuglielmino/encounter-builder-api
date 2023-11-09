@@ -1,4 +1,4 @@
-const { Configuration, OpenAIApi } = require("openai")
+const { Configuration, OpenAIApi } = require("openai");
 const { stringify } = require("flatted");
 
 
@@ -14,25 +14,21 @@ exports.handler = async (event) => {
       return {
         statusCode: 400,
         description: "encounterDescription input cannot be empty",
-      }
+      };
     }
     
-    if (event["imageDescription"] === "") {
-      return {
-        statusCode: 400,
-        description: "imageDescription input cannot be empty",
-      }
-    }
-      
-    const encounterDescription = await getEncounter(event["encounterDescription"]);
-    const encounterImage = await getImage(event["imageDescription"]);
+    const encounter = await getEncounter(event["encounterDescription"]);
+    const encounterTitle = await getEncounterTitle(encounter);
+    const encounterDescription = await getEncounterDescription(encounter);
+    const encounterImage = await getImage(encounterDescription);
     
     return {
       statusCode: 200,
-      description: encounterDescription,
+      title: encounterTitle,
+      description: encounter,
       image: !!encounterImage ? encounterImage : "encounterImage was not generated",
       datetime: new Date(Date.now()).toISOString()
-    }
+    };
 };
 
 
@@ -40,13 +36,16 @@ exports.handler = async (event) => {
 async function getEncounter(textInput) {
   //validation
   
+  
+  const formattedInput = textInput + ", and give the encounter a title, formatted by putting it in between two @ symbols."
+  
   try {
   
     const completion = await openai.createCompletion({
       model: "gpt-3.5-turbo-instruct",
-      prompt: textInput,
-      max_tokens: 30,
-      temperature: 0
+      prompt: formattedInput,
+      max_tokens: 3000,
+      temperature: 0.5
     });
     
     return completion.data.choices[0].text;
@@ -60,13 +59,37 @@ async function getEncounter(textInput) {
 async function getEncounterDescription(textInput) {
   //validation
   
+  const formattedInput = "Write an input to OpenAI describing a top-down tabletop battlemap given the following description: " + textInput;
+  
   try {
   
     const completion = await openai.createCompletion({
       model: "gpt-3.5-turbo-instruct",
-      prompt: textInput,
-      max_tokens: 30,
-      temperature: 0
+      prompt: formattedInput,
+      max_tokens: 200,
+      temperature: 0.5
+    });
+    
+    return completion.data.choices[0].text;
+    
+  } catch {
+    
+  }
+  
+}
+
+async function getEncounterTitle(textInput) {
+  //validation
+  
+  const formattedInput = "Give me a three word title to the following role playing game encounter " + textInput;
+  
+  try {
+  
+    const completion = await openai.createCompletion({
+      model: "gpt-3.5-turbo-instruct",
+      prompt: formattedInput,
+      max_tokens: 8,
+      temperature: 0.1
     });
     
     return completion.data.choices[0].text;
@@ -80,13 +103,9 @@ async function getEncounterDescription(textInput) {
 async function getImage(description) {
   //validation
   
-  console.log("sccop");
   
   try {
     
-    
-  console.log("sccop2");
-  
     const image = await openai.createImage({
       prompt: description,
       size: "1024x1024",
@@ -94,18 +113,15 @@ async function getImage(description) {
     });  //  "Can you make me an easy Pathfinder 2nd edition encounter for five 13 level players" "A professionally drawn dnd battlemap of the nine hells"
     
     
-  console.log("sccop3");
-    
-    // console.log("FULL " + completion);
+  
+    console.log("FULL " + image);
     // console.log("DATA " + completion.data);
     // console.log("body " + completion.data.data[0].url);
     
-    console.log("jere");
-    
-    return stringify(image.data.data[0].url)
+    return image.data.data[0].url
 
     
-  } catch {
-    
+  } catch (error) {
+    console.log(error.response.data);
   }
 }
